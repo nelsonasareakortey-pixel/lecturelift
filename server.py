@@ -155,18 +155,23 @@ Requirements:
 - Notes should have headings, learning objectives, definitions, explanations, examples where supported, key takeaways and a concise revision summary.
 - Put questions without answers in the questions field.
 - Put matching answers and short explanations in the answers field. For essay questions, include a marking guide or key points.
-- Include 10–15 concise flashcards in the flashcards field, one per line, formatted as "Q: ... | A: ...".
+- Include 8–10 concise flashcards in the flashcards field, one per line, formatted as "Q: ... | A: ...".
+- Keep the entire response compact enough to fit in one JSON response: notes about 700–1,000 words, questions and answers concise, flashcards brief.
+- Do not repeat the same explanation in multiple fields.
 - If the transcript appears incomplete, say so in the notes.
 - Return a JSON object with exactly these four string fields: notes, questions, answers, flashcards.
 
-TRANSCRIPT:
-{transcript[:85000]}
+TRANSCRIPT (limited to keep generation reliable):
+{transcript[:45000]}
 """
     try:
         client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1", timeout=120.0, max_retries=1)
         response = client.chat.completions.create(
             model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
             temperature=0.2,
+            # Groq JSON mode can fail if the completion ends before a full JSON object.
+            # Give it a generous output budget while keeping the requested pack concise.
+            max_tokens=8192,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": "Return valid JSON only. Include notes, questions, answers, and flashcards as strings."},
@@ -193,6 +198,8 @@ TRANSCRIPT:
             return jsonify({"error": "The AI API key was rejected. Check GROQ_API_KEY in Render Environment. Never paste the key into this chat or GitHub."}), 503
         if "insufficient_quota" in message or "billing" in message or "quota" in message:
             return jsonify({"error": "The AI API account has no available quota or billing is not enabled. Check API billing on the provider dashboard."}), 503
+        if "json_validate_failed" in message or "failed to generate json" in message or "max completion tokens reached" in message:
+            return jsonify({"error": "The AI response was too long to finish as valid JSON. Please retry; LectureLift now limits the transcript and requests a more compact study pack. If it keeps happening, use a shorter transcript or choose a model with a larger output limit in Render Environment."}), 502
         return jsonify({"error": "The transcript was received, but AI generation failed. Check Render Logs for the detailed server error, and verify GROQ_API_KEY, GROQ_MODEL and your Groq usage limits."}), 502
 
 
