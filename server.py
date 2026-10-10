@@ -84,6 +84,60 @@ def fetch_transcript(video_id: str) -> str:
     return ""
 
 
+@app.post("/api/ask")
+def ask_ai():
+    """Answer a student's question, optionally grounded in the current lecture's saved study pack."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "The request body was not valid JSON. Refresh the page and try again."}), 400
+    question = str(data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "Type a question first."}), 400
+    if len(question) > 5000:
+        return jsonify({"error": "Please keep your question under 5,000 characters."}), 413
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"error": "The AI service is not configured. The site owner must add GROQ_API_KEY in Render Environment."}), 503
+    language = str(data.get("outputLanguage") or "English")[:40]
+    lecture_title = str(data.get("lectureTitle") or "").strip()[:250]
+    context = str(data.get("context") or "").strip()[:18000]
+    system_prompt = (
+        f"You are LectureLift's helpful study tutor. Answer in {language}. "
+        "Explain concepts clearly for a student, use headings or steps when helpful, and give examples where useful. "
+        "If lecture context is provided, prioritize it and clearly distinguish it from general knowledge. "
+        "If the context does not contain the answer, say so briefly and then offer a general explanation if possible. "
+        "Do not invent quotes or claim that something was in the lecture unless it appears in the supplied context."
+    )
+    user_prompt = f"Question:\n{question}"
+    if context:
+        user_prompt = f"Selected lecture: {lecture_title or 'Current lecture'}\n\nSaved lecture study-pack context:\n{context}\n\n{user_prompt}"
+    try:
+        client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1", timeout=90.0, max_retries=1)
+        response = client.chat.completions.create(
+            model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            temperature=0.3,
+            max_tokens=3000,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        answer = (response.choices[0].message.content or "").strip()
+        if not answer:
+            return jsonify({"error": "The AI returned an empty answer. Please try asking in a different way."}), 502
+        return jsonify({"answer": answer})
+    except Exception as exc:
+        app.logger.exception("Ask AI request failed: %s", type(exc).__name__)
+        message = str(exc).lower()
+        if "model" in message and ("not found" in message or "does not exist" in message):
+            return jsonify({"error": "The configured Groq model is unavailable. Check GROQ_MODEL in Render Environment."}), 502
+        if "api key" in message or "authentication" in message or "unauthorized" in message:
+            return jsonify({"error": "Groq rejected the API key. Check GROQ_API_KEY in Render Environment."}), 503
+        if "quota" in message or "rate limit" in message or "billing" in message:
+            return jsonify({"error": "The AI provider has reached a usage limit. Check your Groq account and try again later."}), 503
+        return jsonify({"error": "LectureLift could not get an AI answer just now. Check Render Logs and try again."}), 502
+
+
 @app.errorhandler(413)
 def too_large(_error):
     return jsonify({"error": "The request is too large. Please paste a shorter transcript section (under 100,000 characters)."}), 413
