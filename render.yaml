@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: lecturelift
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: GENERATE_LIMIT
+        value: 5 per hour

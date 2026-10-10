@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Turn YouTube lectures into study notes, flashcards and university-style practice questions.">
+<title>LectureLift — YouTube to Study Notes</title>
+<style>
+:root{--bg:#f5f7fb;--ink:#172033;--muted:#63708a;--blue:#3559e0;--line:#e2e7f1;--card:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+header{padding:18px max(20px,calc((100% - 1050px)/2));display:flex;align-items:center;justify-content:space-between;background:#fff;border-bottom:1px solid var(--line)}
+.brand{display:flex;gap:11px;align-items:center;font-weight:800;font-size:20px}.logo{width:38px;height:38px;border-radius:12px;background:var(--blue);color:white;display:grid;place-items:center;font-size:20px}
+.pill{font-size:12px;border:1px solid #dce3f6;border-radius:99px;padding:7px 11px;color:#4256a7;background:#f7f8ff}
+main{max-width:1050px;margin:34px auto;padding:0 20px}.hero{text-align:center;margin:0 auto 28px;max-width:760px}.eyebrow{color:var(--blue);font-weight:750;text-transform:uppercase;letter-spacing:.1em;font-size:12px}.hero h1{font-size:clamp(30px,5vw,48px);line-height:1.08;letter-spacing:-.04em;margin:12px 0}.hero p{color:var(--muted);font-size:16px;line-height:1.65;margin:0}
+.layout{display:grid;grid-template-columns:1fr .8fr;gap:18px;align-items:start}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 8px 28px #1c2c5010}.card h2{font-size:18px;margin:0 0 8px}.sub{color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 18px}
+label{display:block;font-weight:700;font-size:13px;margin:16px 0 8px}input,textarea,select{width:100%;font:inherit;font-size:14px;border:1px solid #d6deed;border-radius:11px;padding:12px 13px;outline:none;background:#fff;color:var(--ink)}input:focus,textarea:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px #3559e018}textarea{min-height:115px;resize:vertical;line-height:1.5}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{font:inherit;cursor:pointer;border:0;border-radius:11px;padding:12px 16px;font-weight:750}.primary{background:var(--blue);color:white;width:100%;margin-top:18px}.primary:disabled{opacity:.6;cursor:wait}.notice{font-size:12px;color:var(--muted);line-height:1.5;margin-top:12px}.feature{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}.feature:last-child{border:0}.feature-icon{width:36px;height:36px;border-radius:11px;background:#eef1ff;color:var(--blue);display:grid;place-items:center;flex-shrink:0}.feature strong{display:block;font-size:14px;margin-bottom:3px}.feature span{font-size:12px;color:var(--muted);line-height:1.45}.status{display:none;margin-top:14px;padding:11px 13px;border-radius:10px;background:#fff7e6;color:#8a5b00;font-size:13px;line-height:1.45}.status.show{display:block}.results{display:none;margin-top:22px}.result-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{background:#edf0f7;color:#46516b;padding:9px 12px;font-size:13px}.tab.active{background:var(--blue);color:white}.result-content{white-space:pre-wrap;line-height:1.7;font-size:14px;overflow-wrap:anywhere}.result-panel{background:white;border:1px solid var(--line);border-radius:15px;padding:20px}.small-btn{background:#eef1ff;color:#304fc8;padding:8px 10px;font-size:12px}.footer{text-align:center;color:var(--muted);font-size:12px;line-height:1.5;margin:30px 0 18px}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.hero{margin-bottom:22px}main{margin-top:26px}.card{padding:18px}header{padding:15px 18px}.pill{display:none}.two{grid-template-columns:1fr}}
+</style></head>
+<body>
+<header><div class="brand"><div class="logo">✦</div>LectureLift</div><div class="pill">Study smarter · Learn deeper</div></header>
+<main>
+<section class="hero"><div class="eyebrow">Your video study companion</div><h1>Turn lectures into<br>exam-ready notes.</h1><p>Paste a YouTube lecture link and get organised notes, key terms, flashcards and university-style practice questions with answers.</p></section>
+<div class="layout">
+<section class="card">
+<h2>Make study materials</h2><p class="sub">The site can use available captions. If captions cannot be retrieved, paste the transcript from YouTube.</p>
+<form id="makeForm">
+<label for="url">YouTube video link</label><input id="url" type="url" placeholder="https://www.youtube.com/watch?v=..." required maxlength="500">
+<div class="two"><div><label for="level">Study level</label><select id="level"><option>University / Level 100</option><option>Senior High School</option><option>University / Advanced</option><option>Beginner</option></select></div><div><label for="style">Notes style</label><select id="style"><option>Detailed lecture notes</option><option>Concise revision notes</option><option>Exam-focused notes</option></select></div></div>
+<label for="transcript">Transcript (fallback if captions fail)</label><textarea id="transcript" maxlength="100000" placeholder="On YouTube, open the video → Show transcript → copy and paste the transcript here if automatic captions fail."></textarea>
+<div class="two"><div><label for="questions">Practice questions</label><select id="questions"><option>15 questions</option><option>10 questions</option><option>20 questions</option><option>30 questions</option></select></div><div><label for="format">Question types</label><select id="format"><option>Mixed: MCQ + short answer + essay</option><option>Multiple choice only</option><option>Short answer + essay</option></select></div></div>
+<button class="primary" id="submitBtn" type="submit">✦ Generate notes & questions</button><div id="status" class="status" role="status" aria-live="polite"></div>
+<p class="notice">LectureLift may be limited by YouTube captions. AI generation uses a server-side API and may have operating costs.</p>
+</form></section>
+<aside class="card"><h2>What you'll get</h2><p class="sub">Designed for real revision, not just a short summary.</p>
+<div class="feature"><div class="feature-icon">▤</div><div><strong>Structured notes</strong><span>Headings, definitions, explanations, examples and key takeaways.</span></div></div>
+<div class="feature"><div class="feature-icon">✎</div><div><strong>University-style questions</strong><span>MCQs, short-answer and essay questions with an answer key.</span></div></div>
+<div class="feature"><div class="feature-icon">◇</div><div><strong>Revision tools</strong><span>Important terms, flashcards and common misconceptions.</span></div></div>
+<div class="feature"><div class="feature-icon">⇩</div><div><strong>Copy or save</strong><span>Copy your materials for Word or Google Docs.</span></div></div>
+</aside></div>
+<section class="results" id="results"><div class="result-head"><h2 id="resultTitle">Your study pack</h2><button class="small-btn" id="copyBtn" type="button">Copy section</button></div><div class="tabs"><button type="button" class="tab active" data-tab="notes">Notes</button><button type="button" class="tab" data-tab="questions">Practice questions</button><button type="button" class="tab" data-tab="answers">Answer key</button><button type="button" class="tab" data-tab="flashcards">Flashcards</button></div><div class="result-panel"><div class="result-content" id="resultContent"></div></div></section>
+<div class="footer">LectureLift · Check generated materials against your lecturer's notes. Please do not submit AI-generated answers as your own assessed work.</div>
+</main>
+<script>
+const form=document.getElementById('makeForm'), statusBox=document.getElementById('status'), btn=document.getElementById('submitBtn');
+let pack=null, active='notes';
+function showStatus(msg){statusBox.textContent=msg;statusBox.classList.add('show')}
+function render(tab){active=tab;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));document.getElementById('resultContent').textContent=pack?.[tab]||'';document.getElementById('copyBtn').textContent='Copy section'}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>render(b.dataset.tab)));
+document.getElementById('copyBtn').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(document.getElementById('resultContent').textContent);document.getElementById('copyBtn').textContent='Copied!'}catch(e){showStatus('Copy was blocked by your browser. Select the text and copy it manually.')}});
+form.addEventListener('submit',async e=>{
+ e.preventDefault();const url=document.getElementById('url').value.trim(), transcript=document.getElementById('transcript').value.trim();
+ if(!url){showStatus('Please enter a YouTube link.');return}
+ btn.disabled=true;btn.textContent='Working…';showStatus('Trying to read available captions and create your study pack. This may take a little while.');
+ try{
+   const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,transcript,level:document.getElementById('level').value,style:document.getElementById('style').value,questionCount:document.getElementById('questions').value,questionTypes:document.getElementById('format').value})});
+   let data={};try{data=await r.json()}catch(e){}
+   if(!r.ok)throw new Error(data.error||'The service could not process this video.');
+   pack=data;document.getElementById('results').style.display='block';render('notes');showStatus('Study pack created. Try the questions before opening the answer key.');document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(err){showStatus(err.message+' If automatic captions are unavailable, paste the transcript in the box and try again.')}
+ finally{btn.disabled=false;btn.textContent='✦ Generate notes & questions'}
+});
+</script></body></html>
