@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import requests
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Response
 from openai import OpenAI
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -138,6 +138,81 @@ def ask_ai():
         return jsonify({"error": "LectureLift could not get an AI answer just now. Check Render Logs and try again."}), 502
 
 
+@app.get("/api/search-images")
+def search_images():
+    """Search Wikimedia Commons for educational visuals and return attribution metadata."""
+    query = str(request.args.get("q") or "").strip()[:150]
+    if not query:
+        return jsonify({"error": "Enter a topic to search for images."}), 400
+    params = {
+        "action": "query", "generator": "search",
+        "gsrsearch": query + " filetype:bitmap", "gsrnamespace": 6,
+        "gsrlimit": 6, "prop": "imageinfo", "iiprop": "url|extmetadata",
+        "iiurlwidth": 900, "format": "json",
+    }
+    try:
+        response = requests.get(
+            "https://commons.wikimedia.org/w/api.php", params=params,
+            headers={"User-Agent": "LectureLift/1.0 (educational study notes)"}, timeout=20,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        pages = (payload.get("query") or {}).get("pages") or {}
+        images = []
+        for page in pages.values():
+            info_list = page.get("imageinfo") or []
+            if not info_list:
+                continue
+            info = info_list[0]
+            meta = info.get("extmetadata") or {}
+            images.append({
+                "title": page.get("title", "Educational image"),
+                "imageUrl": info.get("thumburl") or info.get("url"),
+                "sourceUrl": info.get("descriptionurl"),
+                "license": (meta.get("LicenseShortName") or {}).get("value", "Check source page"),
+                "attribution": (meta.get("Artist") or {}).get("value", "See source page"),
+            })
+        return jsonify({"images": images})
+    except Exception as exc:
+        app.logger.warning("Image search failed: %s", type(exc).__name__)
+        return jsonify({"error": "Image search is temporarily unavailable. Please try again."}), 502
+
+
+@app.post("/api/generate-image")
+def generate_image():
+    """Optional AI illustration endpoint using Hugging Face Inference Providers."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A valid JSON request is required."}), 400
+    prompt = str(data.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "Describe the educational image you want."}), 400
+    if len(prompt) > 1200:
+        return jsonify({"error": "Keep the image prompt under 1,200 characters."}), 413
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if not token:
+        return jsonify({"error": "AI image generation is optional and not configured yet. Add HF_TOKEN in Render Environment. Image search still works without it."}), 503
+    model = os.environ.get("HF_IMAGE_MODEL", "black-forest-labs/FLUX.1-schnell").strip()
+    endpoint = f"https://router.huggingface.co/hf-inference/models/{model}"
+    try:
+        response = requests.post(
+            endpoint,
+            headers={"Authorization": f"Bearer {token}", "Accept": "image/*"},
+            json={"inputs": "Educational textbook illustration. Clear composition, accurate subject matter, no decorative text or watermark. " + prompt},
+            timeout=120,
+        )
+        if not response.ok:
+            app.logger.warning("Image generation provider returned HTTP %s", response.status_code)
+            return jsonify({"error": "The image provider could not generate this image. Check HF_TOKEN, HF_IMAGE_MODEL, and your provider access/usage limits."}), 502
+        content_type = response.headers.get("Content-Type", "image/png").split(";")[0]
+        if not content_type.startswith("image/"):
+            return jsonify({"error": "The image provider did not return an image. Check the selected model and provider settings."}), 502
+        return Response(response.content, mimetype=content_type, headers={"Cache-Control": "no-store"})
+    except requests.RequestException as exc:
+        app.logger.warning("Image generation request failed: %s", type(exc).__name__)
+        return jsonify({"error": "AI image generation timed out or is temporarily unavailable. Please try again."}), 502
+
+
 @app.errorhandler(413)
 def too_large(_error):
     return jsonify({"error": "The request is too large. Please paste a shorter transcript section (under 100,000 characters)."}), 413
@@ -198,25 +273,31 @@ def generate():
     question_count = str(data.get("questionCount") or "15")[:10]
     question_types = str(data.get("questionTypes") or "Mixed: MCQ + short answer + essay")[:100]
     output_language = str(data.get("outputLanguage") or "English")[:40]
-    prompt = f"""Create a high-quality study pack based on the lecture transcript below.
+    prompt = f"""Create a detailed, accurate LectureLift study pack from the YouTube lecture transcript below.
+
 OUTPUT LANGUAGE: {output_language}
-IMPORTANT LANGUAGE RULE: Write every field (notes, questions, answers, and flashcards) in {output_language}, even if the transcript is in another language. Translate the lecture content into {output_language}; do not copy Arabic or other non-English text unless it is a proper name, a technical term that should remain unchanged, or a short original phrase needed for explanation. Do not change the output language just because the transcript is in another language.
+Write every field in {output_language}, even if the transcript is in another language.
 Audience level: {level}
 Notes style: {style}
 Number of practice questions: {question_count}
 Question formats: {question_types}
 
-Requirements:
-- Base lecture-specific claims on the transcript. Do not pretend missing content was spoken.
-- Correct obvious speech-to-text mistakes only when context strongly supports the correction; flag uncertainty.
-- Notes should have headings, learning objectives, definitions, explanations, examples where supported, key takeaways and a concise revision summary.
+NOTES QUALITY REQUIREMENTS:
+- Make notes meaningfully more detailed than a short transcript summary. Explain main concepts, how they work, why they matter, and how ideas connect.
+- Organize notes with a title, headings, subheadings, definitions, numbered steps where useful, examples, comparisons, and key takeaways.
+- Start with "LEARNING OBJECTIVES" and a short "LECTURE OVERVIEW".
+- Include a section called "WHAT THE VIDEO COVERS". Keep lecture-specific claims grounded in the transcript.
+- Include a separate section called "SUPPLEMENTARY EXPLANATIONS (AI-ADDED)". Add relevant background knowledge, simpler explanations, practical examples, analogies, and useful context beyond the transcript. Never imply this material was spoken by the lecturer.
+- If an extra fact is uncertain or needs checking, label it for verification instead of presenting it as certain.
+- Correct obvious speech-to-text errors only when context strongly supports the correction; flag ambiguity.
+- Do not invent quotations, statistics, sources, page numbers, citations, or experiments.
+- Finish notes with "KEY TAKEAWAYS" and "QUICK REVISION SUMMARY".
+- Avoid repetition and keep notes comprehensive but readable. Aim for 1,200–1,800 words when the transcript has enough substance; use fewer for short or incomplete lectures.
 - Put questions without answers in the questions field.
 - Put matching answers and short explanations in the answers field. For essay questions, include a marking guide or key points.
-- Include 8–10 concise flashcards in the flashcards field, one per line, formatted as "Q: ... | A: ...".
-- Keep the entire response compact enough to fit in one JSON response: notes about 700–1,000 words, questions and answers concise, flashcards brief.
-- Do not repeat the same explanation in multiple fields.
-- If the transcript appears incomplete, say so in the notes.
-- Return a JSON object with exactly these four string fields: notes, questions, answers, flashcards.
+- Include 8–10 concise flashcards, one per line, formatted as "Q: ... | A: ...".
+- Suggest 3–5 educational visual ideas relevant to the actual topic. Use specific search phrases; prefer diagrams for processes, anatomy, systems, and abstract concepts. Do not claim images already exist or were generated.
+- Return one valid JSON object with exactly these fields: "notes" (string), "questions" (string), "answers" (string), "flashcards" (string), "imageSuggestions" (array of short strings).
 
 TRANSCRIPT (limited to keep generation reliable):
 {transcript[:45000]}
@@ -228,10 +309,10 @@ TRANSCRIPT (limited to keep generation reliable):
             temperature=0.2,
             # Groq JSON mode can fail if the completion ends before a full JSON object.
             # Give it a generous output budget while keeping the requested pack concise.
-            max_tokens=8192,
+            max_tokens=10000,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": f"Return valid JSON only. Include notes, questions, answers, and flashcards as strings. Write all four fields in {output_language}, regardless of the source transcript language."},
+                {"role": "system", "content": f"Return valid JSON only. Include notes, questions, answers, and flashcards as strings, plus imageSuggestions as an array of strings. Write all fields in {output_language}, regardless of the source transcript language."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -241,6 +322,15 @@ TRANSCRIPT (limited to keep generation reliable):
         for key in ("notes", "questions", "answers", "flashcards"):
             value = pack.get(key, "")
             result[key] = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+        suggestions = pack.get("imageSuggestions", [])
+        if isinstance(suggestions, str):
+            try:
+                suggestions = json.loads(suggestions)
+            except Exception:
+                suggestions = [suggestions]
+        if not isinstance(suggestions, list):
+            suggestions = []
+        result["imageSuggestions"] = [str(item).strip()[:180] for item in suggestions[:5] if str(item).strip()]
         if not any(result.values()):
             app.logger.error("AI returned an empty study pack for video_id=%s", video_id)
             return jsonify({"error": "The AI returned an empty study pack. Please try again with a shorter transcript."}), 502
