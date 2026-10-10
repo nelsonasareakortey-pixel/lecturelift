@@ -7,7 +7,7 @@ services:
     startCommand: gunicorn server:app --workers 1 --timeout 180
     healthCheckPath: /health
     envVars:
-      - key: OPENAI_API_KEY
+      - key: GROQ_API_KEY
         sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4o-mini
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile

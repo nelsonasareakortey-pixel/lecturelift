@@ -89,10 +89,10 @@ def generate():
         app.logger.warning("Transcript too short: video_id=%s chars=%s", video_id, len(transcript))
         return jsonify({"error": f"The transcript contains only {len(transcript)} characters. Paste at least a few complete paragraphs (80+ characters) and try again."}), 422
 
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
-        app.logger.error("OPENAI_API_KEY is missing.")
-        return jsonify({"error": "The site owner has not configured the AI service. Add OPENAI_API_KEY in Render → your service → Environment, then redeploy."}), 503
+        app.logger.error("GROQ_API_KEY is missing.")
+        return jsonify({"error": "The site owner has not configured the AI service. Add GROQ_API_KEY in Render → your service → Environment, then redeploy."}), 503
 
     level = str(data.get("level") or "University / Level 100")[:100]
     style = str(data.get("style") or "Detailed lecture notes")[:100]
@@ -119,9 +119,9 @@ TRANSCRIPT:
 {transcript[:85000]}
 """
     try:
-        client = OpenAI(api_key=api_key, timeout=120.0, max_retries=1)
+        client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1", timeout=120.0, max_retries=1)
         response = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
             temperature=0.2,
             response_format={"type": "json_object"},
             messages=[
@@ -145,12 +145,12 @@ TRANSCRIPT:
         # Give common configuration issues a useful message without exposing the secret or full traceback.
         message = str(exc).lower()
         if "model" in message and ("not found" in message or "does not exist" in message):
-            return jsonify({"error": "The configured AI model is unavailable for this API account. In Render Environment, set OPENAI_MODEL to a model available to your account, such as gpt-4o-mini if enabled."}), 502
+            return jsonify({"error": "The configured AI model is unavailable for this API account. In Render Environment, set GROQ_MODEL to a model available to your Groq account. Check https://console.groq.com/docs/models for current model IDs."}), 502
         if "api key" in message or "authentication" in message or "unauthorized" in message:
-            return jsonify({"error": "The AI API key was rejected. Check OPENAI_API_KEY in Render Environment. Never paste the key into this chat or GitHub."}), 503
+            return jsonify({"error": "The AI API key was rejected. Check GROQ_API_KEY in Render Environment. Never paste the key into this chat or GitHub."}), 503
         if "insufficient_quota" in message or "billing" in message or "quota" in message:
             return jsonify({"error": "The AI API account has no available quota or billing is not enabled. Check API billing on the provider dashboard."}), 503
-        return jsonify({"error": "The transcript was received, but AI generation failed. Check Render Logs for the detailed server error, and verify OPENAI_API_KEY, OPENAI_MODEL and API billing."}), 502
+        return jsonify({"error": "The transcript was received, but AI generation failed. Check Render Logs for the detailed server error, and verify GROQ_API_KEY, GROQ_MODEL and your Groq usage limits."}), 502
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")), debug=False)
