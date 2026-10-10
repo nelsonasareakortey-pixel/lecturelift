@@ -143,7 +143,10 @@ def generate():
     style = str(data.get("style") or "Detailed lecture notes")[:100]
     question_count = str(data.get("questionCount") or "15")[:10]
     question_types = str(data.get("questionTypes") or "Mixed: MCQ + short answer + essay")[:100]
+    output_language = str(data.get("outputLanguage") or "English")[:40]
     prompt = f"""Create a high-quality study pack based on the lecture transcript below.
+OUTPUT LANGUAGE: {output_language}
+IMPORTANT LANGUAGE RULE: Write every field (notes, questions, answers, and flashcards) in {output_language}, even if the transcript is in another language. Translate the lecture content into {output_language}; do not copy Arabic or other non-English text unless it is a proper name, a technical term that should remain unchanged, or a short original phrase needed for explanation. Do not change the output language just because the transcript is in another language.
 Audience level: {level}
 Notes style: {style}
 Number of practice questions: {question_count}
@@ -174,7 +177,7 @@ TRANSCRIPT (limited to keep generation reliable):
             max_tokens=8192,
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "Return valid JSON only. Include notes, questions, answers, and flashcards as strings."},
+                {"role": "system", "content": f"Return valid JSON only. Include notes, questions, answers, and flashcards as strings. Write all four fields in {output_language}, regardless of the source transcript language."},
                 {"role": "user", "content": prompt},
             ],
         )
