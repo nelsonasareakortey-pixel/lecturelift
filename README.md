@@ -1,45 +1,37 @@
-# LectureLift — Groq deployment package
+# LectureLift Studio
 
-LectureLift creates lecture notes, practice questions, answer keys and flashcards from YouTube lecture transcripts.
+An original lecture-to-learning workspace with a responsive dashboard, YouTube lecture player, editable personal notes, generated study packs, flashcards, quiz review, collections, local library search and export/backup.
 
-## Important limitation
+## Stack
+- Flask API
+- Supadata transcript API (automatic YouTube transcript retrieval)
+- Groq API via OpenAI-compatible client
+- Vanilla HTML/CSS/JavaScript frontend
 
-Automatic YouTube transcript retrieval is best-effort. YouTube can block requests from cloud-hosting IP addresses even when other transcript websites work. This version:
-- tries automatic transcript retrieval;
-- clearly explains when retrieval fails;
-- accepts a transcript pasted into the website;
-- logs useful server diagnostics in Render;
-- returns helpful error messages instead of hiding most failures.
+## Environment variables
+- `SUPADATA_API_KEY`: required for automatic transcript retrieval.
+- `GROQ_API_KEY`: required for study-pack generation.
+- `GROQ_MODEL`: optional; must be a model enabled for your Groq account.
 
-No code can guarantee that YouTube will allow transcript retrieval from every cloud server. The paste-transcript fallback is therefore included intentionally.
+Never commit API keys to GitHub.
 
-## Groq API configuration
+## Deploy to Render
+1. Upload `index.html`, `server.py`, `requirements.txt`, `render.yaml`, and `.gitignore` to your GitHub repository.
+2. In Render, create or open the Web Service linked to the repository.
+3. Build command: `pip install -r requirements.txt`
+4. Start command: `gunicorn server:app`
+5. In Environment, add `SUPADATA_API_KEY` and `GROQ_API_KEY`; keep their values private. Ensure `GROQ_MODEL` is a model available in your Groq account.
+6. Deploy and test `/health`, then generate a pack from a public YouTube video with captions.
 
-This backend uses the OpenAI-compatible Groq endpoint `https://api.groq.com/openai/v1`.
+## Features
+- Overview dashboard and study stats
+- Generate notes, questions, answers and flashcards from YouTube videos
+- Side-by-side YouTube player and generated content
+- Editable personal notes, timestamp placeholder, copy and download
+- Local library, search, collections, flashcard review
+- Quiz question review, JSON backup/import, text export
+- 25-minute focus timer
+- Responsive mobile layout
 
-## Deploy/update on Render
-
-1. Back up your current GitHub repository.
-2. Replace the repository's `index.html`, `server.py`, `requirements.txt`, `render.yaml`, `.gitignore`, and `README.md` with the files in this package. Keep all files in the repository root, not inside an extra nested folder.
-3. Commit the changes to GitHub.
-4. In Render, open your existing LectureLift web service and confirm it is connected to that repository. Render should redeploy after the commit.
-5. In Render → service → Environment, set:
-   - `GROQ_API_KEY` = your secret API key (enter it only in Render; never commit it to GitHub)
-   - `GROQ_MODEL` = `llama-3.3-70b-versatile` if your API account has access to that model
-6. Check that the service is healthy at `/health`, for example `https://YOUR-SERVICE.onrender.com/health`.
-7. Test generation with a short transcript you pasted into the Transcript box. Then test automatic retrieval separately.
-
-## If it still fails
-
-Open Render → service → Logs and look for:
-- `Automatic transcript fetch failed` — YouTube retrieval failed; paste the transcript instead or integrate a transcript provider.
-- `GROQ_API_KEY is missing` — add the secret in Render Environment.
-- `Study pack generation failed` — inspect the following traceback; it may be API billing, model access, key or network configuration.
-- `Transcript too short` — the transcript field was empty or contained less than 80 characters.
-
-## Security and costs
-
-- Never put API keys in `index.html`, GitHub, screenshots or this chat.
-- Groq free-tier access has rate limits and may change; check the current limits in your Groq console. The website hosting and API service have separate terms.
-- Add a spending limit or usage alert to your API provider account.
-- The free Render instance may sleep while idle and take time to wake.
+## Current storage limitation
+This starter stores saved study packs, personal notes and collections in the current browser's local storage. They are not cloud-synced and there is no account login yet. For a production multi-user service, add authentication, a database, per-user access controls, rate limiting and privacy/data deletion policies.

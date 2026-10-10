@@ -2,12 +2,15 @@ services:
   - type: web
     name: lecturelift
     runtime: python
-    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn server:app --workers 1 --timeout 180
+    startCommand: gunicorn server:app
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: SUPADATA_API_KEY
+        sync: false

@@ -30,18 +30,14 @@ def get_video_id(url: str) -> str:
         match = re.search(pattern, url.strip())
         if match:
             return match.group(1)
-    raise ValueError(
-        "That link doesn't look like a supported YouTube video URL. "
-        "Use a youtube.com/watch?v=..., youtu.be/..., Shorts, or embed link."
-    )
+    raise ValueError("That link doesn't look like a supported YouTube video URL. Use a youtube.com/watch?v=..., youtu.be/..., Shorts, or embed link.")
 
 
 def fetch_transcript(video_id: str) -> str:
-    """Fetch YouTube transcript through Supadata, polling for async jobs."""
+    """Fetch YouTube captions through Supadata, polling for asynchronous jobs."""
     api_key = os.environ.get("SUPADATA_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("SUPADATA_API_KEY is not configured in Render.")
-
     headers = {"x-api-key": api_key, "Accept": "application/json"}
     video_url = f"https://www.youtube.com/watch?v={video_id}"
     response = requests.get(
@@ -56,10 +52,7 @@ def fetch_transcript(video_id: str) -> str:
             detail = payload.get("message") or payload.get("error") or response.text
         except Exception:
             detail = response.text
-        raise RuntimeError(
-            f"Supadata request failed (HTTP {response.status_code}): {str(detail)[:250]}"
-        )
-
+        raise RuntimeError(f"Supadata request failed (HTTP {response.status_code}): {str(detail)[:250]}")
     result = response.json()
     job_id = result.get("jobId")
     if job_id:
@@ -72,9 +65,7 @@ def fetch_transcript(video_id: str) -> str:
                 timeout=30,
             )
             if job_response.status_code != 200:
-                raise RuntimeError(
-                    f"Supadata job check failed (HTTP {job_response.status_code})."
-                )
+                raise RuntimeError(f"Supadata job check failed (HTTP {job_response.status_code}).")
             job = job_response.json()
             status = str(job.get("status", "")).lower()
             if status == "completed":
@@ -84,19 +75,12 @@ def fetch_transcript(video_id: str) -> str:
                 error = job.get("error") or "Transcript processing failed."
                 raise RuntimeError(f"Supadata processing failed: {str(error)[:250]}")
         else:
-            raise RuntimeError(
-                "Supadata is still processing this video. Wait a minute and try again."
-            )
-
+            raise RuntimeError("Supadata is still processing this video. Wait a minute and try again.")
     content = result.get("content", "")
     if isinstance(content, str):
         return content.strip()
     if isinstance(content, list):
-        return " ".join(
-            item.get("text", "")
-            for item in content
-            if isinstance(item, dict) and item.get("text")
-        ).strip()
+        return " ".join(item.get("text", "") for item in content if isinstance(item, dict) and item.get("text")).strip()
     return ""
 
 
@@ -117,7 +101,7 @@ def home():
 
 @app.get("/health")
 def health():
-    return jsonify({"status": "ok", "service": "LectureLift"})
+    return jsonify({"status": "ok", "service": "LectureLift Studio"})
 
 
 @app.post("/api/generate")
@@ -125,30 +109,21 @@ def generate():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "The request body was not valid JSON. Refresh the page and try again."}), 400
-
     url = str(data.get("url") or "").strip()
     try:
         video_id = get_video_id(url)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-
     transcript = str(data.get("transcript") or "").strip()
-    app.logger.info(
-        "Generate request received: video_id=%s pasted_transcript_chars=%s",
-        video_id, len(transcript)
-    )
+    app.logger.info("Generate request received: video_id=%s pasted_transcript_chars=%s", video_id, len(transcript))
     if len(transcript) > 100000:
         return jsonify({"error": "The transcript is over 100,000 characters. Please shorten it and try again."}), 413
-
     if not transcript:
         try:
             transcript = fetch_transcript(video_id)
             app.logger.info("Supadata transcript fetch succeeded: video_id=%s chars=%s", video_id, len(transcript))
         except Exception as exc:
-            app.logger.warning(
-                "Automatic transcript fetch failed for %s: %s: %s",
-                video_id, type(exc).__name__, str(exc)[:500]
-            )
+            app.logger.warning("Automatic transcript fetch failed for %s: %s: %s", video_id, type(exc).__name__, str(exc)[:500])
             detail = str(exc)
             if "SUPADATA_API_KEY is not configured" in detail:
                 return jsonify({"error": "Automatic captions are not configured. Add SUPADATA_API_KEY in Render → your service → Environment, then redeploy."}), 503
@@ -156,21 +131,14 @@ def generate():
                 return jsonify({"error": "Supadata rejected the API key. Check SUPADATA_API_KEY in Render Environment."}), 503
             if "HTTP 429" in detail:
                 return jsonify({"error": "The transcript service has reached a usage limit. Check your Supadata dashboard or paste the transcript manually."}), 503
-            return jsonify({
-                "error": "LectureLift could not fetch this video's transcript automatically. "
-                         "Check that the video is public and captions are available, or paste the transcript into the transcript box and retry. "
-                         "Check Render Logs for details if the problem continues."
-            }), 422
-
+            return jsonify({"error": "LectureLift could not fetch this video's transcript automatically. Check that the video is public and captions are available, or paste the transcript into the transcript box and retry. Check Render Logs for details if the problem continues."}), 422
     if len(transcript) < 80:
         app.logger.warning("Transcript too short: video_id=%s chars=%s", video_id, len(transcript))
         return jsonify({"error": f"The transcript contains only {len(transcript)} characters. Paste at least a few complete paragraphs (80+ characters) and try again."}), 422
-
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         app.logger.error("GROQ_API_KEY is missing.")
         return jsonify({"error": "The site owner has not configured the AI service. Add GROQ_API_KEY in Render → your service → Environment, then redeploy."}), 503
-
     level = str(data.get("level") or "University / Level 100")[:100]
     style = str(data.get("style") or "Detailed lecture notes")[:100]
     question_count = str(data.get("questionCount") or "15")[:10]
@@ -195,12 +163,7 @@ TRANSCRIPT:
 {transcript[:85000]}
 """
     try:
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://api.groq.com/openai/v1",
-            timeout=120.0,
-            max_retries=1,
-        )
+        client = OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1", timeout=120.0, max_retries=1)
         response = client.chat.completions.create(
             model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
             temperature=0.2,
